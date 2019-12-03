@@ -997,10 +997,9 @@ func resourceArmVirtualMachineScaleSetRead(d *schema.ResourceData, meta interfac
 		return fmt.Errorf("[DEBUG] Error setting `sku`: %#v", err)
 	}
 
-	if err := d.Set("additional_capabilities", flattenAzureRmVirtualMachineScaleSetAdditionalCapabilities(resp.AdditionalCapabilities)); err != nil {
+	if err := d.Set("additional_capabilities", FlattenAzureRmVirtualMachineScaleSetAdditionalCapabilities(resp.AdditionalCapabilities)); err != nil {
 		 return fmt.Errorf("Error setting `additional_capabilities`: %#v", err)
  }
-
 
 	flattenedIdentity := flattenAzureRmVirtualMachineScaleSetIdentity(resp.Identity)
 	if err := d.Set("identity", flattenedIdentity); err != nil {
@@ -1291,16 +1290,30 @@ func flattenAzureRmVirtualMachineScaleSetBootDiagnostics(bootDiagnostic *compute
 }
 
 
-func ExpandVirtualMachineScaleSetAdditionalCapabilities(input []interface{}) *compute.AdditionalCapabilities {
-	capabilities := compute.AdditionalCapabilities{}
+// func ExpandVirtualMachineScaleSetAdditionalCapabilities(input []interface{}) *compute.AdditionalCapabilities {
+// 	capabilities := compute.AdditionalCapabilities{}
+//
+// 	if len(input) > 0 {
+// 		raw := input[0].(map[string]interface{})
+//
+// 		capabilities.UltraSSDEnabled = utils.Bool(raw["ultra_ssd_enabled"].(bool))
+// 	}
+//
+// 	return &capabilities
+// }
 
-	if len(input) > 0 {
-		raw := input[0].(map[string]interface{})
-
-		capabilities.UltraSSDEnabled = utils.Bool(raw["ultra_ssd_enabled"].(bool))
+func ExpandAzureRmVirtualScaleSetMachineAdditionalCapabilities(d *schema.ResourceData) *compute.AdditionalCapabilities {
+	additionalCapabilities := d.Get("additional_capabilities").([]interface{})
+	if len(additionalCapabilities) == 0 {
+		return nil
 	}
 
-	return &capabilities
+	additionalCapability := additionalCapabilities[0].(map[string]interface{})
+	capability := &compute.AdditionalCapabilities{
+		UltraSSDEnabled: utils.Bool(additionalCapability["ultra_ssd_enabled"].(bool)),
+	}
+
+	return capability
 }
 
 func FlattenVirtualMachineScaleSetAdditionalCapabilities(input *compute.AdditionalCapabilities) []interface{} {
