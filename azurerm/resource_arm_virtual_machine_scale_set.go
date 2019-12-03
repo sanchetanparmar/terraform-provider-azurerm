@@ -895,13 +895,13 @@ func resourceArmVirtualMachineScaleSetCreateUpdate(d *schema.ResourceData, meta 
 		scaleSetProps.VirtualMachineProfile.EvictionPolicy = compute.VirtualMachineEvictionPolicyTypes(evictionPolicy)
 	}
 
-	if _, ok := d.GetOk("boot_diagnostics"); ok {
+  if _, ok := d.GetOk("boot_diagnostics"); ok {
 		diagnosticProfile := expandAzureRMVirtualMachineScaleSetsDiagnosticProfile(d)
 		scaleSetProps.VirtualMachineProfile.DiagnosticsProfile = &diagnosticProfile
 	}
 
 	if _, ok := d.GetOk("additional_capabilities"); ok {
-	   scaleSetProps.VirtualMachineProfile.AdditionalCapabilities = ExpandAzureRmVirtualMachineScaleSetAdditionalCapabilities(d)
+	   scaleSetProps.VirtualMachineProfile.AdditionalCapabilities = ExpandVirtualMachineScaleSetAdditionalCapabilities(d)
   }
 
 	if v, ok := d.GetOk("health_probe_id"); ok {
