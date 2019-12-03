@@ -57,6 +57,21 @@ func resourceArmVirtualMachineScaleSet() *schema.Resource {
 
 			"zones": azure.SchemaZones(),
 
+			"additional_capabilities": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"ultra_ssd_enabled": {
+							Type:     schema.TypeBool,
+							Required: true,
+							ForceNew: true,
+						},
+				},
+		},
+},
+
 			"identity": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -540,8 +555,9 @@ func resourceArmVirtualMachineScaleSet() *schema.Resource {
 							Required: true,
 						},
 					},
-				},
 			},
+	},
+
 
 			//lintignore:S018
 			"storage_profile_os_disk": {
@@ -553,7 +569,7 @@ func resourceArmVirtualMachineScaleSet() *schema.Resource {
 						"name": {
 							Type:     schema.TypeString,
 							Optional: true,
-						},
+			},
 
 						"image": {
 							Type:     schema.TypeString,
@@ -635,6 +651,7 @@ func resourceArmVirtualMachineScaleSet() *schema.Resource {
 								string(compute.StorageAccountTypesPremiumLRS),
 								string(compute.StorageAccountTypesStandardLRS),
 								string(compute.StorageAccountTypesStandardSSDLRS),
+								string(compute.StorageAccountTypesUltraSSDLRS),
 							}, true),
 						},
 					},
@@ -782,6 +799,7 @@ func resourceArmVirtualMachineScaleSet() *schema.Resource {
 	}
 }
 
+
 func resourceArmVirtualMachineScaleSetCreateUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).Compute.VMScaleSetClient
 	ctx, cancel := timeouts.ForCreateUpdate(meta.(*ArmClient).StopContext, d)
@@ -882,6 +900,10 @@ func resourceArmVirtualMachineScaleSetCreateUpdate(d *schema.ResourceData, meta 
 		scaleSetProps.VirtualMachineProfile.DiagnosticsProfile = &diagnosticProfile
 	}
 
+	if _, ok := d.GetOk("additional_capabilities"); ok {
+	   scaleSetProps.VirtualMachineProfile.AdditionalCapabilities = ExpandAzureRmVirtualMachineScaleSetAdditionalCapabilities(d)
+  }
+
 	if v, ok := d.GetOk("health_probe_id"); ok {
 		scaleSetProps.VirtualMachineProfile.NetworkProfile.HealthProbe = &compute.APIEntityReference{
 			ID: utils.String(v.(string)),
@@ -974,6 +996,11 @@ func resourceArmVirtualMachineScaleSetRead(d *schema.ResourceData, meta interfac
 	if err := d.Set("sku", flattenAzureRmVirtualMachineScaleSetSku(resp.Sku)); err != nil {
 		return fmt.Errorf("[DEBUG] Error setting `sku`: %#v", err)
 	}
+
+	if err := d.Set("additional_capabilities", flattenAzureRmVirtualMachineScaleSetAdditionalCapabilities(resp.AdditionalCapabilities)); err != nil {
+		 return fmt.Errorf("Error setting `additional_capabilities`: %#v", err)
+ }
+
 
 	flattenedIdentity := flattenAzureRmVirtualMachineScaleSetIdentity(resp.Identity)
 	if err := d.Set("identity", flattenedIdentity); err != nil {
@@ -1262,6 +1289,38 @@ func flattenAzureRmVirtualMachineScaleSetBootDiagnostics(bootDiagnostic *compute
 
 	return []interface{}{b}
 }
+
+
+func ExpandVirtualMachineScaleSetAdditionalCapabilities(input []interface{}) *compute.AdditionalCapabilities {
+	capabilities := compute.AdditionalCapabilities{}
+
+	if len(input) > 0 {
+		raw := input[0].(map[string]interface{})
+
+		capabilities.UltraSSDEnabled = utils.Bool(raw["ultra_ssd_enabled"].(bool))
+	}
+
+	return &capabilities
+}
+
+func FlattenVirtualMachineScaleSetAdditionalCapabilities(input *compute.AdditionalCapabilities) []interface{} {
+	if input == nil {
+		return []interface{}{}
+	}
+
+	ultraSsdEnabled := false
+
+	if input.UltraSSDEnabled != nil {
+		ultraSsdEnabled = *input.UltraSSDEnabled
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"ultra_ssd_enabled": ultraSsdEnabled,
+		},
+	}
+}
+
 
 func flattenAzureRmVirtualMachineScaleSetRollingUpgradePolicy(rollingUpgradePolicy *compute.RollingUpgradePolicy) []interface{} {
 	b := make(map[string]interface{})
@@ -1552,14 +1611,14 @@ func flattenAzureRmVirtualMachineScaleSetExtensionProfile(profile *compute.Virtu
 func resourceArmVirtualMachineScaleSetStorageProfileImageReferenceHash(v interface{}) int {
 	var buf bytes.Buffer
 
-	if m, ok := v.(map[string]interface{}); ok {
+if m, ok := v.(map[string]interface{}); ok {
 		if v, ok := m["publisher"]; ok {
 			buf.WriteString(fmt.Sprintf("%s-", v.(string)))
 		}
-		if v, ok := m["offer"]; ok {
+    if v, ok := m["offer"]; ok {
 			buf.WriteString(fmt.Sprintf("%s-", v.(string)))
 		}
-		if v, ok := m["sku"]; ok {
+   if v, ok := m["sku"]; ok {
 			buf.WriteString(fmt.Sprintf("%s-", v.(string)))
 		}
 		if v, ok := m["version"]; ok {
@@ -1576,8 +1635,8 @@ func resourceArmVirtualMachineScaleSetStorageProfileImageReferenceHash(v interfa
 func resourceArmVirtualMachineScaleSetStorageProfileOsDiskHash(v interface{}) int {
 	var buf bytes.Buffer
 
-	if m, ok := v.(map[string]interface{}); ok {
-		buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
+if m, ok := v.(map[string]interface{}); ok {
+    	buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
 
 		if v, ok := m["vhd_containers"]; ok {
 			buf.WriteString(fmt.Sprintf("%s-", v.(*schema.Set).List()))
@@ -1590,7 +1649,7 @@ func resourceArmVirtualMachineScaleSetStorageProfileOsDiskHash(v interface{}) in
 func resourceArmVirtualMachineScaleSetNetworkConfigurationHash(v interface{}) int {
 	var buf bytes.Buffer
 
-	if m, ok := v.(map[string]interface{}); ok {
+if m, ok := v.(map[string]interface{}); ok {
 		buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
 		buf.WriteString(fmt.Sprintf("%t-", m["primary"].(bool)))
 
@@ -1656,7 +1715,7 @@ func resourceArmVirtualMachineScaleSetNetworkConfigurationHash(v interface{}) in
 func resourceArmVirtualMachineScaleSetOsProfileLinuxConfigHash(v interface{}) int {
 	var buf bytes.Buffer
 
-	if m, ok := v.(map[string]interface{}); ok {
+if m, ok := v.(map[string]interface{}); ok {
 		buf.WriteString(fmt.Sprintf("%t-", m["disable_password_authentication"].(bool)))
 
 		if sshKeys, ok := m["ssh_keys"].([]interface{}); ok {
@@ -1678,7 +1737,7 @@ func resourceArmVirtualMachineScaleSetOsProfileLinuxConfigHash(v interface{}) in
 func resourceArmVirtualMachineScaleSetOsProfileWindowsConfigHash(v interface{}) int {
 	var buf bytes.Buffer
 
-	if m, ok := v.(map[string]interface{}); ok {
+if m, ok := v.(map[string]interface{}); ok {
 		if v, ok := m["provision_vm_agent"]; ok {
 			buf.WriteString(fmt.Sprintf("%t-", v.(bool)))
 		}
@@ -1693,7 +1752,7 @@ func resourceArmVirtualMachineScaleSetOsProfileWindowsConfigHash(v interface{}) 
 func resourceArmVirtualMachineScaleSetExtensionHash(v interface{}) int {
 	var buf bytes.Buffer
 
-	if m, ok := v.(map[string]interface{}); ok {
+if m, ok := v.(map[string]interface{}); ok {
 		buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
 		buf.WriteString(fmt.Sprintf("%s-", m["publisher"].(string)))
 		buf.WriteString(fmt.Sprintf("%s-", m["type"].(string)))
@@ -1773,15 +1832,15 @@ func expandAzureRmVirtualMachineScaleSetNetworkProfile(d *schema.ResourceData) *
 				dns_servers := dns_settings["dns_servers"].([]interface{})
 				if len(dns_servers) > 0 {
 					var dnsServers []string
-					for _, v := range dns_servers {
-						str := v.(string)
+					 for _, v := range dns_servers {
+						 str := v.(string)
 						dnsServers = append(dnsServers, str)
 					}
 					dnsSettings.DNSServers = &dnsServers
 				}
 			}
 		}
-		ipConfigurationConfigs := config["ip_configuration"].([]interface{})
+ipConfigurationConfigs := config["ip_configuration"].([]interface{})
 		ipConfigurations := make([]compute.VirtualMachineScaleSetIPConfiguration, 0, len(ipConfigurationConfigs))
 		for _, ipConfigConfig := range ipConfigurationConfigs {
 			ipconfig := ipConfigConfig.(map[string]interface{})
@@ -1827,7 +1886,7 @@ func expandAzureRmVirtualMachineScaleSetNetworkProfile(d *schema.ResourceData) *
 			if v := ipconfig["load_balancer_backend_address_pool_ids"]; v != nil {
 				pools := v.(*schema.Set).List()
 				resources := make([]compute.SubResource, 0, len(pools))
-				for _, p := range pools {
+				  for _, p := range pools {
 					id := p.(string)
 					resources = append(resources, compute.SubResource{
 						ID: &id,
@@ -2025,7 +2084,7 @@ func expandAzureRMVirtualMachineScaleSetsStorageProfileOsDisk(d *schema.Resource
 
 	if len(vhd_containers) > 0 {
 		var vhdContainers []string
-		for _, v := range vhd_containers {
+		  for _, v := range vhd_containers {
 			str := v.(string)
 			vhdContainers = append(vhdContainers, str)
 		}
@@ -2295,7 +2354,7 @@ func expandAzureRMVirtualMachineScaleSetExtensions(d *schema.ResourceData) (*com
 			provision_after_extensions := config["provision_after_extensions"].(*schema.Set).List()
 			if len(provision_after_extensions) > 0 {
 				var provisionAfterExtensions []string
-				for _, a := range provision_after_extensions {
+				  for _, a := range provision_after_extensions {
 					str := a.(string)
 					provisionAfterExtensions = append(provisionAfterExtensions, str)
 				}
